@@ -273,6 +273,7 @@ glm::vec3 moveDVDSprite(float dt, unsigned int window_width)
 	else if (dvd_position.y <= window_y_min) {
 		dvd_velocity.y = -dvd_velocity.y;
 		dvd_position.y = window_y_min;
+		setUniformRandomColor();
 	}
 
 	//std::cout << "x: " << dvd_position.x << " y: " << dvd_position.y << std::endl;
