@@ -12,15 +12,26 @@
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
 glm::vec3 moveDVDSprite(float dt, unsigned int window_width);
-
+glm::vec3 getRandomColor();
+float randomColor();
 namespace {
 	//settings
 	const unsigned int SCR_WIDTH = 800;
 	const unsigned int SCR_HEIGHT = 600;
 
+	unsigned int shaderProgram;
+	unsigned int shaderProgram2;
+
 	glm::vec3 dvd_position;
-	glm::vec3 velocity(0.00001f, 0.0f, 0.0f);
-	glm::vec2 size(1.0f, 1.0f);
+	glm::vec3 dvd_velocity(0.0008f, -0.0002f, 0.0f);
+	//glm::vec2 dvd_size(1.0f, 1.0f);
+
+
+	// Calcular el ancho
+	float width = (0.125f - (-0.125f)); // Ancho como float, resultando en 0.25f
+
+	// Crear un glm::vec3 con el ancho
+	glm::vec3 dvd_size = glm::vec3(width, 0.0f, 0.0f); // Ancho en el eje X, cero en Y y Z
 
 	const char* vertexShaderSource = "#version 330 core\n"
 		"layout (location = 0) in vec3 aPos;\n"
@@ -40,9 +51,28 @@ namespace {
 		"in vec3 ourColor;\n"
 		"in vec2 TexCoord;\n"
 		"uniform sampler2D ourTexture;\n"
+		//"vec3 colorB = vec3(1.000,0.833,0.224);\n"
+		"uniform vec3 colorB;\n"
 		"void main()\n"
 		"{\n"
-		"   FragColor = texture(ourTexture, TexCoord);\n"
+		"   FragColor = texture(ourTexture, TexCoord)* vec4(colorB, 1.0);\n"
+		"}\n\0";
+
+	const char* fragmentShaderColorSource = "#version 330 core\n"
+		"out vec4 FragColor;\n"
+		"in vec3 ourColor;\n"
+		"in vec2 TexCoord;\n"
+		"float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }\n"
+		"float rnd(float i) {return mod(4000.*sin(23464.345*i+45.345),1.);}\n"
+		"float r1 = rand(TexCoord);\n"
+		"float r2 = rand(TexCoord);\n"
+		"float r3 = rand(TexCoord);\n"
+		"vec3 noise = vec3(r1,r2,0.912);\n"
+		"vec3 colorA = vec3(0.149,0.141,0.912);\n"
+		"uniform sampler2D ourTexture;\n"
+		"void main()\n"
+		"{\n"
+		"   FragColor = texture(ourTexture, TexCoord) * vec4(noise, 1.0);\n"
 		"}\n\0";
 }
 
@@ -52,6 +82,8 @@ int main(void)
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
 #ifndef __APPLE__
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -73,6 +105,9 @@ int main(void)
 	/* Make the window's context current */
 	glfwMakeContextCurrent(window);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+		
+	int window_width, window_height;
+	glfwGetFramebufferSize(window, &window_width, &window_height);
 
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
 	{
@@ -93,6 +128,19 @@ int main(void)
 		std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
 	}
 
+	unsigned int vertexShader2 = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vertexShader2, 1, &vertexShaderSource, NULL);
+	glCompileShader(vertexShader2);
+
+	int success2;
+	char infoLog2[512];
+	glGetShaderiv(vertexShader2, GL_COMPILE_STATUS, &success2);
+	if (!success2)
+	{
+		glGetShaderInfoLog(vertexShader2, 512, NULL, infoLog2);
+		std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog2 << std::endl;
+	}
+
 	unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
 	glCompileShader(fragmentShader);
@@ -103,10 +151,25 @@ int main(void)
 		std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
 	}
 
-	unsigned int shaderProgram = glCreateProgram();
+
+	unsigned int fragmentColorShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fragmentColorShader, 1, &fragmentShaderColorSource, NULL);
+	glCompileShader(fragmentColorShader);
+	glGetShaderiv(fragmentColorShader, GL_COMPILE_STATUS, &success);
+	if (!success)
+	{
+		glGetShaderInfoLog(fragmentColorShader, 512, NULL, infoLog);
+		std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+	}
+
+	shaderProgram = glCreateProgram();
+	shaderProgram2 = glCreateProgram();
 	glAttachShader(shaderProgram, vertexShader);
 	glAttachShader(shaderProgram, fragmentShader);
+	glAttachShader(shaderProgram2, vertexShader2);
+	glAttachShader(shaderProgram2, fragmentColorShader);
 	glLinkProgram(shaderProgram);
+	glLinkProgram(shaderProgram2);
 
 	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
 	if (!success) {
@@ -115,13 +178,14 @@ int main(void)
 	}
 	glDeleteShader(vertexShader);
 	glDeleteShader(fragmentShader);
+	glDeleteShader(fragmentColorShader);
 
 	float vertices[] = {
 		// positions              // colors              // texture cords
-		 0.125f,  0.125f, -0.25f, -0.5f, -0.5f, -0.5f,   1.0f, 1.0f, // top right
-		 0.125f, -0.125f, -0.25f, -0.5f,  0.5f, -0.5f,   1.0f, 0.0f, // bottom right
-		-0.125f, -0.125f, -0.25f, -0.5f, -0.5f,  0.5f,   0.0f, 0.0f, // bottom left
-		-0.125f,  0.125f, -0.25f,  0.5f,  0.5f, -0.5f,   0.0f, 1.0f  // top left
+		 0.125f,  0.125f, -0.25f, 1.0f, 0.0f, 0.0f,   1.0f, 1.0f, // top right
+		 0.125f, -0.125f, -0.25f, 0.0f, 1.0f, 0.0f,   1.0f, 0.0f, // bottom right
+		-0.125f, -0.125f, -0.25f, 0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
+		-0.125f,  0.125f, -0.25f, 1.0f, 1.0f, 0.0f,   0.0f, 1.0f  // top left
 
 	};
 	unsigned int indices[] = {
@@ -177,6 +241,11 @@ int main(void)
 		std::cout << "Failed to load texture" << std::endl;
 	}
 	stbi_image_free(data);
+	glfwSetTime(3.29149);
+
+	glUseProgram(shaderProgram);
+	glm::vec3 randomColor = getRandomColor();
+	glUniform3f(glGetUniformLocation(shaderProgram, "colorB"), randomColor.r, randomColor.g, randomColor.b);
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
@@ -190,22 +259,13 @@ int main(void)
 		glBindTexture(GL_TEXTURE_2D, texture);
 
 		//transforms
-		/*glm::mat4 view = glm::mat4(1.0f);
-		glm::mat4 projection = glm::mat4(1.0f);
-		projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-		view = glm::translate(view, glm::vec3(0.0f, 0.0f, -3.0f));
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);*/
-
 		glm::mat4 transform = glm::mat4(1.0f);
-		float deltaTime = glfwGetTime() * 0.20f;
 		transform = glm::translate(transform, moveDVDSprite((float)glfwGetTime(), SCR_WIDTH));
 		//transform = glm::rotate(transform, (float)glfwGetTime(), glm::vec3(0.0f, 0.0f, 1.0f));
-		glUseProgram(shaderProgram);
+		//glUseProgram(shaderProgram);
+		//glUseProgram(shaderProgram2);
 		unsigned int transformLoc = glGetUniformLocation(shaderProgram, "transform");
 		glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
-
-		//for (unsigned int i = 0; i < )
 		/*glm::mat4 model = glm::mat4(1.0f);
 		model = glm::translate(model, glm::vec3(0.0f, 0.04f, 0.0f));*/
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
@@ -236,20 +296,64 @@ void processInput(GLFWwindow* window)
 
 glm::vec3 moveDVDSprite(float dt, unsigned int window_width)
 {
-	dvd_position += velocity * dt;
+	const float x_max = 0.917626f;
+	const float x_min = 0.817626f;
+	const float y_max = 0.90f;
+	const float y_min = -y_max;
+	dvd_position += dvd_velocity * dt * 0.20f;
 
-	if (dvd_position.x <= 0.0f) {
-		velocity.x = -velocity.x;
-		dvd_position.x = 0.0f;
+	//std::cout << "x: " << dvd_position.x << " y: " << dvd_position.y << std::endl;
+	//std::cout << "x: " << dvd_velocity.x << " y: " << dvd_velocity.y << std::endl;
+	//std::cout << "delta: " << dt << std::endl;
+
+	if (dt >= 3.29149f) {
+		glfwSetTime(3.29149);
+		dt = 3.29149;
 	}
-	else if (dvd_position.x + size.x >= window_width) {
-		velocity.x = -velocity.x;
-		dvd_position.x = window_width - size.x;
+	
+	if (dvd_position.x <= -x_max) {
+		dvd_velocity.x = -dvd_velocity.x;
+		dvd_position.x = -x_max;
+		glUseProgram(shaderProgram);
+		glm::vec3 randomColor = getRandomColor();
+		glUniform3f(glGetUniformLocation(shaderProgram, "colorB"), randomColor.r, randomColor.g, randomColor.b);
+		std::cout << "x: " << dvd_position.x << " y: " << dvd_position.y << std::endl;
 	}
-	if (dvd_position.y <= 0.0f)
-	{
-		velocity.y = -velocity.y;
-		dvd_position.y = 0.0f;
+	else if (dvd_position.x  >= x_max) {
+		dvd_velocity.x = -dvd_velocity.x;
+		dvd_position.x = x_max;
+		glUseProgram(shaderProgram);
+		glm::vec3 randomColor = getRandomColor();
+		glUniform3f(glGetUniformLocation(shaderProgram, "colorB"), randomColor.r, randomColor.g, randomColor.b);
+		std::cout << "x: " << dvd_position.x << " y: " << dvd_position.y << std::endl;
 	}
+	
+	if (dvd_position.y >= y_max) {
+		dvd_velocity.y = -dvd_velocity.y;
+		dvd_position.y = y_max;
+		glUseProgram(shaderProgram);
+		glm::vec3 randomColor = getRandomColor();
+		glUniform3f(glGetUniformLocation(shaderProgram, "colorB"), randomColor.r, randomColor.g, randomColor.b);
+		std::cout << "x: " << dvd_position.x << " y: " << dvd_position.y << std::endl;
+	}
+	else if (dvd_position.y <= y_min) {
+		dvd_velocity.y = -dvd_velocity.y;
+		dvd_position.y = y_min;
+		glUseProgram(shaderProgram);
+		glm::vec3 randomColor = getRandomColor();
+		glUniform3f(glGetUniformLocation(shaderProgram, "colorB"), randomColor.r, randomColor.g, randomColor.b);
+		std::cout << "x: " << dvd_position.x << " y: " << dvd_position.y << std::endl;
+	}
+
 	return dvd_position;
+}
+
+glm::vec3 getRandomColor()
+{
+	return glm::vec3(randomColor(), randomColor(), randomColor());
+}
+
+float randomColor()
+{
+	return static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
 }
