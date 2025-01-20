@@ -141,10 +141,22 @@
   <ItemGroup>
     <ClCompile Include="DVDBouncingSimulator.cpp" />
     <ClCompile Include="includes\glad\glad.c" />
+    <ClCompile Include="includes\imgui\imgui.cpp" />
+    <ClCompile Include="includes\imgui\imgui_demo.cpp" />
+    <ClCompile Include="includes\imgui\imgui_draw.cpp" />
+    <ClCompile Include="includes\imgui\imgui_impl_glfw.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="includes\glad\glad.h" />
     <ClInclude Include="includes\glad\KHR\khrplatform.h" />
+    <ClInclude Include="includes\imgui\imconfig.h" />
+    <ClInclude Include="includes\imgui\imgui.h" />
+    <ClInclude Include="includes\imgui\imgui_impl_glfw.h" />
+    <ClInclude Include="includes\imgui\imgui_impl_opengl3.h" />
+    <ClInclude Include="includes\imgui\imgui_internal.h" />
+    <ClInclude Include="includes\imgui\imstb_rectpack.h" />
+    <ClInclude Include="includes\imgui\imstb_textedit.h" />
+    <ClInclude Include="includes\imgui\imstb_truetype.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
