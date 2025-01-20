@@ -145,6 +145,9 @@
     <ClCompile Include="includes\imgui\imgui_demo.cpp" />
     <ClCompile Include="includes\imgui\imgui_draw.cpp" />
     <ClCompile Include="includes\imgui\imgui_impl_glfw.cpp" />
+    <ClCompile Include="includes\imgui\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="includes\imgui\imgui_tables.cpp" />
+    <ClCompile Include="includes\imgui\imgui_widgets.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="includes\glad\glad.h" />
@@ -153,6 +156,7 @@
     <ClInclude Include="includes\imgui\imgui.h" />
     <ClInclude Include="includes\imgui\imgui_impl_glfw.h" />
     <ClInclude Include="includes\imgui\imgui_impl_opengl3.h" />
+    <ClInclude Include="includes\imgui\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="includes\imgui\imgui_internal.h" />
     <ClInclude Include="includes\imgui\imstb_rectpack.h" />
     <ClInclude Include="includes\imgui\imstb_textedit.h" />
