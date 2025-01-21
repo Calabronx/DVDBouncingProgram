@@ -16,13 +16,18 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
+#include <math.h>
 #include <windows.h> 
+
+#define TAU (3.14159265358979323846 * 2.0)
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
+void updateColor(float time);
 void setUniformRandomColor();
 glm::vec3 moveDVDSprite(float dt, unsigned int window_width);
 glm::vec3 getRandomColor();
+float rand(glm::vec2 co);
 float randomColor();
 namespace {
 	// window settings
@@ -33,13 +38,19 @@ namespace {
 	const float window_y_max = 0.90f;
 	const float window_y_min = -0.90f;
 	// max delta frames
-	const float max_dt = 3.29149f;
+	float max_dt = 3.29149f;
+	float currentFrame = 0.0f;
+	float deltaTime = 0.0f;
+	float lastFrame = 0.0f;
+	float d = TAU;
 	//dvd rectangle properties
-	const float dvd_velocity_float = 0.35f;
+	float dvd_velocity_float = 0.35f;
 	const float width = (0.125f - (-0.125f)); // Ancho como float, resultando en 0.25f
 	glm::vec3 dvd_position;
 	glm::vec3 dvd_velocity(0.0004f, -0.0002f, 0.0f);
 	glm::vec3 dvd_size = glm::vec3(width, 0.0f, 0.0f); // Ancho en el eje X, cero en Y y Z
+
+	glm::vec4 background_color(0.0f, 0.0f, 0.0f, 0.0f);
 	//shaders
 	unsigned int shaderProgram;
 	const char* vertexShaderSource = "#version 330 core\n"
@@ -65,6 +76,25 @@ namespace {
 		"{\n"
 		"   FragColor = texture(texture, TexCoord)* vec4(randomColor, 1.0);\n"
 		"}\n\0";
+
+	const char* fragmentShaderColorSource = "#version 330 core\n"
+		"out vec4 FragColor;\n"
+		"in vec3 ourColor;\n"
+		"in vec2 TexCoord;\n"
+		"float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }\n"
+		"float rnd(float i) {return mod(4000.*sin(23464.345*i+45.345),1.);}\n"
+		"float r1 = rand(TexCoord);\n"
+		"float r2 = rand(TexCoord);\n"
+		"float r3 = rand(TexCoord);\n"
+		"vec3 noise = vec3(r1,r2,0.912);\n"
+		"vec3 colorA = vec3(0.149,0.141,0.912);\n"
+		"uniform sampler2D ourTexture;\n"
+		"void main()\n"
+		"{\n"
+		"   FragColor = texture(ourTexture, TexCoord) * vec4(noise, 1.0);\n"
+		"}\n\0";
+
+	bool random_background_color = false;
 }
 
 int main(void)
@@ -106,6 +136,20 @@ int main(void)
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		return -1;
 	}
+
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // IF using Docking Branch
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForOpenGL(window, true);          // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
+	ImGui_ImplOpenGL3_Init();
+
 
 	unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
@@ -151,6 +195,17 @@ int main(void)
 		-0.125f,  0.125f, -0.25f, 1.0f, 1.0f, 0.0f,   0.0f, 1.0f  // top left
 
 	};
+
+	/**
+		float vertices[] = { marian test
+		// positions              // colors              // texture cords
+		 0.125f,  0.250f, -0.25f, 1.0f, 0.0f, 0.0f,   1.0f, 1.0f, // top right
+		 0.125f, -0.250f, -0.25f, 0.0f, 1.0f, 0.0f,   1.0f, 0.0f, // bottom right
+		-0.125f, -0.250f, -0.25f, 0.0f, 0.0f, 1.0f,   0.0f, 0.0f, // bottom left
+		-0.125f,  0.250f, -0.25f, 1.0f, 1.0f, 0.0f,   0.0f, 1.0f  // top left
+
+	};
+	**/
 	unsigned int indices[] = {
 		0,1,3,  //First triangle
 		1,2,3   // second triangle
@@ -207,18 +262,62 @@ int main(void)
 	glfwSetTime(3.29149);
 
 	glUseProgram(shaderProgram);
-	glm::vec3 randomColor = getRandomColor();
-	glUniform3f(glGetUniformLocation(shaderProgram, "colorB"), randomColor.r, randomColor.g, randomColor.b);
+	glm::vec3 initialColor = glm::vec3(1.0f, 1.0f, 1.0f);
+	glUniform3f(glGetUniformLocation(shaderProgram, "randomColor"), initialColor.r, initialColor.g, initialColor.b);
+	
 	// loop
 	while (!glfwWindowShouldClose(window))
 	{
 		processInput(window);
 		/* Render here */
 		glClear(GL_COLOR_BUFFER_BIT);
-
+		glClearColor(background_color.r, background_color.g, background_color.b, background_color.a);
 		glBindVertexArray(VAO);
 		glBindTexture(GL_TEXTURE_2D, texture);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+		// (Your code calls glfwPollEvents())
+		// ...
+		// Start the Dear ImGui frame
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		ImGui::Begin("Propiedades", NULL, ImGuiWindowFlags_None | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+		ImGui::SetWindowSize(ImVec2(500, 250));
+		//ImGui::ShowDemoWindow(); // Show demo window! :)
+		if (ImGui::Button("Color de fondo aleatorio")) {
+			random_background_color = !random_background_color;
+			if (!random_background_color) {
+				background_color.r = 0.0f;
+				background_color.g = 0.0f;
+				background_color.b = 0.0f;
+				background_color.a = 0.0f;
+			}
+			std::cout << "CLICK" << std::endl;
+		}
+		if (random_background_color) {
+		
+			updateColor(glfwGetTime());
+		}
+
+		if (ImGui::Button("Noise")) {
+			background_color.r = rand(glm::vec2(12.9898, 78.233));
+			background_color.g = rand(glm::vec2(12.9898, 78.233));
+			background_color.b = rand(glm::vec2(12.9898, 78.233));
+			background_color.a = rand(glm::vec2(12.9898, 78.233));
+		}
+	/*	ImGui::SliderFloat("R", &background_color.r, 0.0f, 1.0f);
+		ImGui::SliderFloat("B", &background_color.b, 0.0f, 1.0f);*/
+		ImGui::SliderFloat("Velocidad", &dvd_velocity_float, 0.0f, 3.0f);
+		ImGui::ColorEdit4("Background color", &background_color[0]);
+		ImGui::End();
+
+		// Rendering
+		// (Your code clears your framebuffer, renders your other stuff etc.)
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		// (Your code calls glfwSwapBuffers() etc.)
+
 		//transforms
 		glm::mat4 transform = glm::mat4(1.0f);
 		transform = glm::translate(transform, moveDVDSprite((float)glfwGetTime(), SCR_WIDTH));
@@ -233,6 +332,9 @@ int main(void)
 	glDeleteBuffers(1, &VBO);
 	glDeleteBuffers(1, &EBO);
 	glDeleteProgram(shaderProgram);
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 
 	glfwTerminate();
 	return 0;
@@ -249,14 +351,31 @@ void processInput(GLFWwindow* window)
 		glfwSetWindowShouldClose(window, true);
 }
 
+void updateColor(float time)
+{
+	float r = (sin(time) + 1.0f) / 2.0f;
+	float g = (sin(time + 2.0f) + 1.0f) / 2.0f;
+	float b = (sin(time + 4.0f) + 1.0f) / 2.0f;
+	float a = (sin(time + 5.0f) + 1.0f) / 2.0f;
+	background_color.r = r;
+	background_color.g = g;
+	background_color.b = b;
+	background_color.a = a;
+	std::cout << r << " " << g << " " << b << std::endl;
+	glClearColor(r, g, b, a);
+}
+
 glm::vec3 moveDVDSprite(float dt, unsigned int window_width)
 {
-	dvd_position += dvd_velocity * dt * dvd_velocity_float;
+	currentFrame = glfwGetTime();
+	deltaTime = currentFrame - lastFrame;
+	lastFrame = currentFrame;
 
-	if (dt >= max_dt) {
-		glfwSetTime(max_dt);
-		dt = max_dt;
-	}
+	d += deltaTime * dvd_velocity_float;
+	dvd_position += dvd_velocity * d * dvd_velocity_float;
+
+	if (d >= max_dt)
+		d = max_dt;
 	
 	if (dvd_position.x <= -window_x_max) {
 		dvd_velocity.x = -dvd_velocity.x;
@@ -298,4 +417,9 @@ void setUniformRandomColor() {
 	glUseProgram(shaderProgram);
 	glm::vec3 randomColor = getRandomColor();
 	glUniform3f(glGetUniformLocation(shaderProgram, "randomColor"), randomColor.r, randomColor.g, randomColor.b);
+}
+
+float rand(glm::vec2 co) {
+	return glm::fract(sin(glm::dot(co.x, co.y)) * 43758.5453);
+
 }
